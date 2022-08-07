@@ -7,6 +7,7 @@ use objc::rc::StrongPtr;
 use objc::runtime::{Class, Object};
 use objc::Encode;
 // use objc::found
+use clap::{arg, command, value_parser, Arg, ArgAction, Command};
 use cocoa::appkit::NSScreen;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSArray, NSDictionary, NSRect, NSString, NSURL};
@@ -89,6 +90,15 @@ fn set_wallpaper(
 }
 
 fn main() {
+    let matches = Command::new("space-eye").arg(
+        Arg::with_name("wallpaper")
+            .help("Path to the wallpaper to set")
+            .takes_value(true)
+            .required(true),
+    ).get_matches();
+
+    let wallpaper_path = matches.value_of("wallpaper").unwrap();
+
     // println!("Hello, world!");
 
     // let cls = class!(NSScreen);
@@ -103,7 +113,7 @@ fn main() {
     // set_wallpaper(1, "/Users/michael/Pictures/STSCI-J-p22031a-4000px.jpeg");
     set_wallpaper(
         1,
-        "/Users/michael/Pictures/northern-lights-aurora-borealis-4k-fz.jpeg",
+        wallpaper_path,
         NSColor {
             r: 1.0,
             g: 1.0,
