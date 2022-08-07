@@ -12,6 +12,7 @@ use clap::{arg, command, value_parser, Arg, ArgAction, Command};
 use cocoa::appkit::NSScreen;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSArray, NSDictionary, NSRect, NSString, NSURL};
+use directories::{BaseDirs, ProjectDirs, UserDirs};
 use std::io::Cursor;
 
 fn nsstring(s: &str) -> StrongPtr {
@@ -93,6 +94,12 @@ fn set_wallpaper(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let proj_dirs = ProjectDirs::from("com", "kydronepilot", "space-eye-rs").unwrap();
+    let data_dir = proj_dirs.data_dir();
+    let images_dir = data_dir.join("images");
+
+    std::fs::create_dir_all(&images_dir).unwrap();
+
     let matches = Command::new("space-eye")
         .arg(
             Arg::with_name("wallpaper")
@@ -152,8 +159,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     // by_name.insert(screen.name.clone(), screen);
     // }
 
-    let response = reqwest::get("https://imagery.spaceeye.app/goes-16/continental-us/5k.jpg").await?;
-    std::fs::write("/Users/michael/Downloads/test_sat_img.jpg", response.bytes().await?)?;
+    println!("{:?}", images_dir);
+
+    let response =
+        reqwest::get("https://imagery.spaceeye.app/goes-16/continental-us/5k.jpg").await?;
+    std::fs::write(
+        images_dir.join("test_sat_img.jpg"),
+        response.bytes().await?,
+    )?;
     // let mut file = std::fs::File::create("/Users/michael/Downloads/test_sat_img.jpg")?;
     // let mut content =  Cursor::new(response.bytes().await?);
     // std::io::copy(&mut content, &mut file)?;
