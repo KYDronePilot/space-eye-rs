@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate objc;
 
+use std::collections::HashMap;
 use std::process::exit;
 
 use objc::rc::StrongPtr;
@@ -89,13 +90,16 @@ fn set_wallpaper(
     };
 }
 
-fn main() {
-    let matches = Command::new("space-eye").arg(
-        Arg::with_name("wallpaper")
-            .help("Path to the wallpaper to set")
-            .takes_value(true)
-            .required(true),
-    ).get_matches();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let matches = Command::new("space-eye")
+        .arg(
+            Arg::with_name("wallpaper")
+                .help("Path to the wallpaper to set")
+                .takes_value(true)
+                .required(true),
+        )
+        .get_matches();
 
     let wallpaper_path = matches.value_of("wallpaper").unwrap();
 
@@ -146,4 +150,11 @@ fn main() {
     //     // virtual_rect = virtual_rect.union(&screen.rect);
     //     // by_name.insert(screen.name.clone(), screen);
     // }
+
+    let resp = reqwest::get("https://httpbin.org/ip")
+        .await?
+        .json::<HashMap<String, String>>()
+        .await?;
+    println!("{:#?}", resp);
+    Ok(())
 }
