@@ -12,6 +12,7 @@ use clap::{arg, command, value_parser, Arg, ArgAction, Command};
 use cocoa::appkit::NSScreen;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSArray, NSDictionary, NSRect, NSString, NSURL};
+use std::io::Cursor;
 
 fn nsstring(s: &str) -> StrongPtr {
     unsafe { StrongPtr::new(NSString::alloc(nil).init_str(s)) }
@@ -150,6 +151,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     // virtual_rect = virtual_rect.union(&screen.rect);
     //     // by_name.insert(screen.name.clone(), screen);
     // }
+
+    let response = reqwest::get("https://imagery.spaceeye.app/goes-16/continental-us/5k.jpg").await?;
+    std::fs::write("/Users/michael/Downloads/test_sat_img.jpg", response.bytes().await?)?;
+    // let mut file = std::fs::File::create("/Users/michael/Downloads/test_sat_img.jpg")?;
+    // let mut content =  Cursor::new(response.bytes().await?);
+    // std::io::copy(&mut content, &mut file)?;
 
     let resp = reqwest::get("https://httpbin.org/ip")
         .await?
