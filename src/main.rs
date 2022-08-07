@@ -14,6 +14,7 @@ use cocoa::base::{id, nil};
 use cocoa::foundation::{NSArray, NSDictionary, NSRect, NSString, NSURL};
 use directories::{BaseDirs, ProjectDirs, UserDirs};
 use std::io::Cursor;
+use serde::{Serialize, Deserialize};
 
 fn nsstring(s: &str) -> StrongPtr {
     unsafe { StrongPtr::new(NSString::alloc(nil).init_str(s)) }
@@ -92,6 +93,53 @@ fn set_wallpaper(
     };
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+enum ImageScaling {
+    #[serde(rename = "fit")]
+    Fit,
+    #[serde(rename = "fill")]
+    Fill,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct ImageSource {
+    id: u64,
+    url: String,
+    estimated_size: String,
+    update_interval: u64,
+    dimensions: (u64, u64),
+    #[serde(default)]
+    is_thumbnail: bool,
+    default_scaling: ImageScaling,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct SatelliteView {
+    id: u64,
+    name: String,
+    image_sources: Vec<ImageSource>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Satellite {
+    id: u64,
+    name: String,
+    views: Vec<SatelliteView>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct SatelliteConfig {
+    // version: String,
+    dns_http_probe_override: Vec<String>,
+    satellites: Vec<Satellite>,
+}
+
+const SATELLITE_CONFIG_FILE: &'static str = "https://spaceeye-satellite-configs.s3.us-east-2.amazonaws.com/1.2.0/config.json";
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proj_dirs = ProjectDirs::from("com", "kydronepilot", "space-eye-rs").unwrap();
@@ -160,6 +208,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // }
 
     println!("{:?}", images_dir);
+
+    let satellite_config = reqwest::get(SATELLITE_CONFIG_FILE).await?.json::<SatelliteConfig>().await?;
+    println!("{:?}", satellite_config);
 
     let response =
         reqwest::get("https://imagery.spaceeye.app/goes-16/continental-us/5k.jpg").await?;
