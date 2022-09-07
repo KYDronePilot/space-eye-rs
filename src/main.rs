@@ -13,8 +13,9 @@ use cocoa::appkit::NSScreen;
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSArray, NSDictionary, NSRect, NSString, NSURL};
 use directories::{BaseDirs, ProjectDirs, UserDirs};
+use serde::{Deserialize, Serialize};
 use std::io::Cursor;
-use serde::{Serialize, Deserialize};
+use std::time::{Duration, SystemTime};
 
 fn nsstring(s: &str) -> StrongPtr {
     unsafe { StrongPtr::new(NSString::alloc(nil).init_str(s)) }
@@ -138,7 +139,68 @@ struct SatelliteConfig {
     satellites: Vec<Satellite>,
 }
 
-const SATELLITE_CONFIG_FILE: &'static str = "https://spaceeye-satellite-configs.s3.us-east-2.amazonaws.com/1.2.0/config.json";
+const SATELLITE_CONFIG_FILE: &'static str =
+    "https://spaceeye-satellite-configs.s3.us-east-2.amazonaws.com/1.2.0/config.json";
+
+const CONFIG_CACHE_INVALIDATION_TIMEOUT: u64 = 60 * 15;
+
+struct DownloadedSatelliteConfig {
+    config: SatelliteConfig,
+    etag: String,
+    downloaded_at: u64,
+}
+
+impl DownloadedSatelliteConfig {
+    async fn download() -> Result<Self, Box<dyn std::error::Error>> {
+        let response = reqwest::get(SATELLITE_CONFIG_FILE).await?;
+        let etag = response.headers().get(reqwest::header::ETAG).unwrap().to_str().unwrap().to_string();
+        let config = response.json::<SatelliteConfig>().await?;
+
+        Ok(DownloadedSatelliteConfig {
+            config,
+            etag,
+            downloaded_at: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+        })
+    }
+}
+
+struct SatelliteConfigStore {
+    current_config: Option<DownloadedSatelliteConfig>,
+}
+
+impl Default for SatelliteConfigStore {
+    fn default() -> Self {
+        SatelliteConfigStore {
+            current_config: None,
+        }
+    }
+}
+
+impl SatelliteConfigStore {
+    async fn update_config(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let config = DownloadedSatelliteConfig::download().await?;
+        self.current_config = Some(config);
+        Ok(())
+    }
+
+    async fn get_config(&mut self) -> Result<&SatelliteConfig, Box<dyn std::error::Error>> {
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let config = match self.current_config {
+            Some(ref config) if now - config.downloaded_at < CONFIG_CACHE_INVALIDATION_TIMEOUT => {
+                Ok(&config.config)
+            }
+            _ => {
+                self.update_config().await?;
+                Ok(&self.current_config.unwrap().config)
+            }
+        };
+        config
+        // if now - config.downloaded_at > CONFIG_CACHE_INVALIDATION_TIMEOUT {
+        //     self.update_config().await?;
+        // }
+
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -209,15 +271,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{:?}", images_dir);
 
-    let satellite_config = reqwest::get(SATELLITE_CONFIG_FILE).await?.json::<SatelliteConfig>().await?;
+    let satellite_config = reqwest::get(SATELLITE_CONFIG_FILE)
+        .await?
+        .json::<SatelliteConfig>()
+        .await?;
     println!("{:?}", satellite_config);
 
     let response =
         reqwest::get("https://imagery.spaceeye.app/goes-16/continental-us/5k.jpg").await?;
-    std::fs::write(
-        images_dir.join("test_sat_img.jpg"),
-        response.bytes().await?,
-    )?;
+    std::fs::write(images_dir.join("test_sat_img.jpg"), response.bytes().await?)?;
     // let mut file = std::fs::File::create("/Users/michael/Downloads/test_sat_img.jpg")?;
     // let mut content =  Cursor::new(response.bytes().await?);
     // std::io::copy(&mut content, &mut file)?;
